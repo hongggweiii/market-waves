@@ -1,8 +1,9 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Query
 from pydantic import BaseModel
 import numpy as np
 from scipy import signal
 from fastapi.middleware.cors import CORSMiddleware
+import yfinance as yf
 
 app = FastAPI()
 
@@ -15,21 +16,23 @@ app.add_middleware(
 )
 
 @app.get("/api/data")
-def generate_synthetic_data():
-    # Time axis, 1 point daily for 1 year
-    t = np.linspace(0, 365, 365)
+def get_market_data(ticker: str = Query("synthetic")):
+    if ticker == "synthetic":
+        # Return our textbook math waves
+        t = np.linspace(0, 365, 365)
+        trend_30_day = 10 * np.sin(2 * np.pi * (1/30) * t)
+        cycle_7_day = 5 * np.sin(2 * np.pi * (1/7) * t)
+        noise = np.random.normal(0, 2, 365)
+        y = trend_30_day + cycle_7_day + noise + 100
+        
+        return {"time": t.tolist(), "price": y.tolist()}
     
-    # Create market cycles, where formula: A * sin(2 * pi * f * t)
-    trend_30_day = 10 * np.sin(2 * np.pi * (1/30) * t)  # Low frequency (f = 1/30)
-    cycle_7_day = 5 * np.sin(2 * np.pi * (1/7) * t)     # High frequency (f = 1/7)
-    noise = np.random.normal(0, 2, 365)                 # Random market noise
-    
-    y = trend_30_day + cycle_7_day + noise + 100
-    
-    return {
-        "time": t.tolist(),
-        "price": y.tolist()
-    }
+    else:
+        market_data = yf.download(ticker, period="1y", interval="1d")
+        prices = market_data['Close'].values.flatten().tolist()
+        t = list(range(len(prices)))
+        
+        return {"time": t, "price": prices}
 
 # Short Time Fourier Transform
 class STFTRequest(BaseModel):

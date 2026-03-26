@@ -10,26 +10,28 @@ function App() {
   const [price, setPrice] = useState([]);
   const [spectrogram, setSpectrogram] = useState(null);
 
-  const [windowSize, setWindowSize] = useState(28);
+  const [windowSize, setWindowSize] = useState(60);
   const [samplingRate, setSamplingRate] = useState(1.0);
 
   const [isFiltering, setIsFiltering] = useState(false);
   const [cutoffFreq, setCutoffFreq] = useState(0.08);
   const [reconstructedPrice, setReconstructedPrice] = useState([]);
 
+  const [asset, setAsset] = useState('synthetic');
+
   const deltaF = (samplingRate / windowSize).toFixed(4);
   const isNyquistViolated = samplingRate <= 0.28;
 
   // Fetch raw data
   useEffect(() => {
-    fetch('http://localhost:8000/api/data')
+    fetch(`http://localhost:8000/api/data?ticker=${asset}`)
       .then(res => res.json())
       .then(data => {
         setTime(data.time);
         setPrice(data.price);
       })
       .catch(err => console.error("Error fetching data:", err));
-  }, []);
+  }, [asset]);
 
   // Fetch STFT
   useEffect(() => {
@@ -119,6 +121,22 @@ function App() {
     <div style={{ padding: '20px', fontFamily: 'sans-serif', maxWidth: '1000px', margin: '0 auto' }}>
       <h1>Time-Series STFT Explorer</h1>
       <p>Visualizing BT3017 Frequency Analysis on Market Data</p>
+
+      {/* Asset Class Selector */}
+      <div style={{ background: '#e3f2fd', padding: '15px 20px', borderRadius: '8px', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '20px' }}>
+        <h3 style={{ margin: 0 }}>Select Market Data:</h3>
+        <select 
+          value={asset} 
+          onChange={(e) => setAsset(e.target.value)}
+          style={{ padding: '8px', fontSize: '16px', borderRadius: '4px' }}
+        >
+          <option value="synthetic">Textbook Example (Synthetic Math)</option>
+          <option value="^GSPC">Index Fund (S&P 500 - Low Volatility)</option>
+          <option value="EURUSD=X">Forex (EUR/USD - Mid Volatility)</option>
+          <option value="TSLA">Stock (Tesla - High Volatility)</option>
+          <option value="BTC-USD">Crypto (Bitcoin - Extreme Volatility)</option>
+        </select>
+      </div>
 
       {/* Interactive Math Sandbox */}
       <div style={{ background: '#f4f4f9', padding: '20px', borderRadius: '8px', marginBottom: '20px' }}>
