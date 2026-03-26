@@ -15,6 +15,11 @@ function App() {
 
   const deltaF = (samplingRate / windowSize).toFixed(4);
 
+  // Nyquist Limit Check: 
+  // Our highest generated frequency is the 7-day cycle (f = 1/7 = 0.1428 Hz)
+  // Nyquist states fs must be > 2 * f_max (approx 0.285 Hz)
+  const isNyquistViolated = samplingRate <= 0.28;
+
   // Fetch raw data
   useEffect(() => {
     fetch('http://localhost:8000/api/data')
@@ -46,6 +51,16 @@ function App() {
       .catch(err => console.error("Error fetching STFT:", err));
   }, [price, windowSize, samplingRate]);
 
+  // Build the custom hover text for the Math Inspector Tooltip
+  // Map through the 2D arrays to show the exact sine and cosine math for each pixel
+  const hoverTextMatrix = spectrogram ? spectrogram.magnitudes.map((row, i) => 
+    row.map((mag, j) => {
+      const a = spectrogram.imag_parts[i][j].toFixed(2); // Sine part
+      const b = spectrogram.real_parts[i][j].toFixed(2); // Cosine part
+      return `Sine Part (a): ${a}<br>Cosine Part (b): ${b}`;
+    })
+  ) : [];
+
   return (
     <div style={{ padding: '20px', fontFamily: 'sans-serif', maxWidth: '1000px', margin: '0 auto' }}>
       <h1>Time-Series STFT Explorer</h1>
@@ -55,7 +70,14 @@ function App() {
       <div style={{ background: '#f4f4f9', padding: '20px', borderRadius: '8px', marginBottom: '20px' }}>
         <h3>Interactive Parameters</h3>
         
-        <div style={{ display: 'flex', gap: '40px', alignItems: 'center' }}>
+        {/* Nyquist Warning */}
+        {isNyquistViolated && (
+          <div style={{ background: '#ffcccc', color: '#cc0000', padding: '10px', borderRadius: '4px', marginBottom: '15px', border: '1px solid #cc0000' }}>
+            <strong>⚠️ Nyquist Limit Violated:</strong> You are sampling too slowly to capture the fast 7-day cycle. The spectrogram is now showing "Aliasing" (ghost frequencies).
+          </div>
+        )}
+
+        <div style={{ display: 'flex', gap: '40px', alignItems: 'flex-start' }}>
           <div>
             <label><strong>Window Size (N): {windowSize} days</strong></label><br/>
             <input 
@@ -65,6 +87,12 @@ function App() {
               onChange={(e) => setWindowSize(parseInt(e.target.value))}
               style={{ width: '200px' }}
             />
+            {/* Trade Off Guide */}
+            <div style={{ fontSize: '0.85em', color: '#555', marginTop: '5px', maxWidth: '200px' }}>
+              {windowSize < 20 && "High TIME resolution, but low FREQUENCY resolution (blocky Y-axis)."}
+              {windowSize >= 20 && windowSize <= 50 && "Balanced Time and Frequency resolution."}
+              {windowSize > 50 && "High FREQUENCY resolution (crisp Y-axis), but low TIME resolution."}
+            </div>
           </div>
 
           <div>
@@ -101,8 +129,22 @@ function App() {
       <div style={{ border: '1px solid #ccc' }}>
         {spectrogram ? (
           <Plot
-            data={[{ x: spectrogram.times, y: spectrogram.frequencies, z: spectrogram.magnitudes, type: 'heatmap', colorscale: 'Jet' }]}
-            layout={{ title: 'Frequency Domain (Spectrogram)', xaxis: { title: 'Time (Windows)' }, yaxis: { title: 'Frequency (Cycles per Day)' }, height: 400, margin: { l: 50, r: 50, b: 50, t: 50 } }}
+            data={[{ 
+              x: spectrogram.times, 
+              y: spectrogram.frequencies, 
+              z: spectrogram.magnitudes, 
+              text: hoverTextMatrix, // Attach math text to the data points
+              type: 'heatmap', 
+              colorscale: 'Jet',
+              // Custom hover tooltip format
+              hovertemplate: 
+                '<b>Time Window:</b> %{x} days<br>' +
+                '<b>Frequency:</b> %{y:.4f} Hz<br>' +
+                '%{text}<br>' +
+                '<b>Total Magnitude (Color):</b> %{z:.2f}' +
+                '<extra></extra>' // Removes the secondary trace label
+            }]}
+            layout={{ title: 'Frequency Domain (Spectrogram) - Hover for Math', xaxis: { title: 'Time (Windows)' }, yaxis: { title: 'Frequency (Cycles per Day)' }, height: 400, margin: { l: 50, r: 50, b: 50, t: 50 } }}
             style={{ width: '100%' }}
           />
         ) : (
