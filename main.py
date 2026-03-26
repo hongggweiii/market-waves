@@ -41,20 +41,21 @@ class STFTRequest(BaseModel):
 def compute_stft(req: STFTRequest):
     y = np.array(req.signal_data)
     
-    # Run the STFT
-    # nperseg is Window Size (N)
-    f, t, Zxx = signal.stft(y, fs=req.sampling_rate, nperseg=req.window_size)
+    # Calculate and remove the DC offset (mean)
+    global_mean = float(np.mean(y))
+    y_centered = y - global_mean
     
-    # Zxx is a 2D matrix of complex numbers (b - ja)
-    # Calculate the magnitude: sqrt(real^2 + imag^2)
+    # Run STFT on the centered data
+    f, t, Zxx = signal.stft(y_centered, fs=req.sampling_rate, nperseg=req.window_size)
     magnitudes = np.abs(Zxx)
     
     return {
         "frequencies": f.tolist(),
         "times": t.tolist(),
-        "magnitudes": magnitudes.tolist(),       # For the heatmap colors
-        "real_parts": np.real(Zxx).tolist(),     # For the "Complex Plane" UI feature
-        "imag_parts": np.imag(Zxx).tolist()      # For the "Complex Plane" UI feature
+        "magnitudes": magnitudes.tolist(),
+        "real_parts": np.real(Zxx).tolist(),
+        "imag_parts": np.imag(Zxx).tolist(),
+        "global_mean": global_mean # Send the mean to React
     }
 
 # Inverse Fast Fourier Transform
@@ -63,23 +64,23 @@ class IFFTRequest(BaseModel):
     imag_parts: list[list[float]]
     window_size: int
     sampling_rate: float
+    global_mean: float # Receive the mean from React
 
 @app.post("/api/ifft")
 def compute_ifft(req: IFFTRequest):
-    # Convert lists back to NumPy arrays
     real_arr = np.array(req.real_parts)
     imag_arr = np.array(req.imag_parts)
-    
-    # Reconstruct the complex matrix: Z = Real + j * Imaginary
     Zxx_modified = real_arr + 1j * imag_arr
     
-    # Run the Inverse STFT to get back to the time domain
     _, y_reconstructed = signal.istft(
         Zxx_modified, 
         fs=req.sampling_rate, 
         nperseg=req.window_size
     )
     
+    # Add the massive DC offset back to the smoothed signal
+    y_final = y_reconstructed + req.global_mean
+    
     return {
-        "reconstructed_signal": y_reconstructed.tolist()
+        "reconstructed_signal": y_final.tolist()
     }

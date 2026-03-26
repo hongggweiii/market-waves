@@ -73,7 +73,8 @@ function App() {
         real_parts: filteredReal,
         imag_parts: filteredImag,
         window_size: windowSize,
-        sampling_rate: samplingRate
+        sampling_rate: samplingRate,
+        global_mean: spectrogram.global_mean
       })
     })
       .then(res => res.json())
