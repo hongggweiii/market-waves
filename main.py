@@ -4,6 +4,7 @@ import numpy as np
 from scipy import signal
 from fastapi.middleware.cors import CORSMiddleware
 import yfinance as yf
+from scipy.fft import rfft, rfftfreq
 
 app = FastAPI()
 
@@ -86,4 +87,50 @@ def compute_ifft(req: IFFTRequest):
     
     return {
         "reconstructed_signal": y_final.tolist()
+    }
+
+class DecomposeRequest(BaseModel):
+    signal_data: list[float]
+    sampling_rate: float
+
+@app.post("/api/decompose")
+def compute_3d_decomposition(req: DecomposeRequest):
+    y = np.array(req.signal_data)
+    N = len(y)
+    t = np.arange(N)
+    
+    # Remove the DC Offset (baseline) so real waves are not masked
+    global_mean = float(np.mean(y))
+    y_centered = y - global_mean
+    
+    # Run standard 1D FFT over the entire signal
+    yf = rfft(y_centered)
+    xf = rfftfreq(N, 1 / req.sampling_rate)
+    
+    # Find the magnitudes to locate the strongest frequencies
+    magnitudes = np.abs(yf)
+    
+    # Get the indices of the top 3 strongest frequencies
+    top_3_indices = np.argsort(magnitudes)[-3:][::-1]
+    
+    constituent_waves = []
+    
+    for idx in top_3_indices:
+        freq = xf[idx]
+        # Calculate True Amplitude: A = 2 * |X[k]| / N
+        amplitude = (2.0 / N) * np.abs(yf[idx])
+        # Calculate Phase shift
+        phase = np.angle(yf[idx])
+        
+        # Mathematically reconstruct the pure, perfect wave
+        pure_wave = amplitude * np.cos(2 * np.pi * freq * t + phase)
+        
+        constituent_waves.append({
+            "frequency": float(freq),
+            "wave": pure_wave.tolist()
+        })
+        
+    return {
+        "global_mean": global_mean,
+        "waves": constituent_waves
     }

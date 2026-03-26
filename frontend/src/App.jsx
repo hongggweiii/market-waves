@@ -19,6 +19,9 @@ function App() {
 
   const [asset, setAsset] = useState('synthetic');
 
+  const [is3DMode, setIs3DMode] = useState(false);
+  const [decomposedWaves, setDecomposedWaves] = useState([]);
+
   const deltaF = (samplingRate / windowSize).toFixed(4);
   const isNyquistViolated = samplingRate <= 0.28;
 
@@ -85,6 +88,25 @@ function App() {
       })
       .catch(err => console.error("Error with IFFT:", err));
   }, [isFiltering, cutoffFreq, spectrogram, windowSize, samplingRate]);
+
+  // Fetch 3D Deconstructed Waves
+  useEffect(() => {
+    if (price.length === 0) return;
+
+    fetch('http://localhost:8000/api/decompose', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        signal_data: price,
+        sampling_rate: 1.0 // 1 point daily
+      })
+    })
+      .then(res => res.json())
+      .then(data => {
+        setDecomposedWaves(data);
+      })
+      .catch(err => console.error("Error fetching 3D data:", err));
+  }, [price]);
 
   const hoverTextMatrix = spectrogram ? spectrogram.magnitudes.map((row, i) => 
     row.map((mag, j) => {
@@ -204,13 +226,62 @@ function App() {
         </div>
       </div>
 
-      {/* Top: Time Domain (Line Chart) */}
+      {/* 3D TOGGLE BUTTON */}
+      <div style={{ marginBottom: '10px' }}>
+        <button 
+          onClick={() => setIs3DMode(!is3DMode)}
+          style={{ padding: '10px 20px', fontSize: '16px', background: '#17BECF', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+        >
+          {is3DMode ? "Return to 2D View" : "✨ View 3D Fourier Breakdown"}
+        </button>
+      </div>
+
+      {/* Top: Time Domain (2D or 3D) */}
       <div style={{ border: '1px solid #ccc', marginBottom: '20px' }}>
-        <Plot
-          data={topChartTraces}
-          layout={{ title: 'Time Domain (Raw vs Filtered)', xaxis: { title: 'Days' }, yaxis: { title: 'Price' }, height: 300, margin: { l: 50, r: 50, b: 50, t: 50 } }}
-          style={{ width: '100%' }}
-        />
+        {!is3DMode ? (
+          <Plot
+            data={topChartTraces} // Uses existing 2D traces
+            layout={{ title: 'Time Domain (Raw vs Filtered)', xaxis: { title: 'Days' }, yaxis: { title: 'Price' }, height: 400, margin: { l: 50, r: 50, b: 50, t: 50 } }}
+            style={{ width: '100%' }}
+          />
+        ) : (
+          <Plot
+            data={[
+              // Trace 1: The Raw Data (Z = 0)
+              {
+                x: time,
+                y: price,
+                z: Array(time.length).fill(0), // Push the raw data to the front
+                type: 'scatter3d',
+                mode: 'lines',
+                name: 'Raw Market Data',
+                line: { color: '#000000', width: 4 }
+              },
+              // Traces 2-4: The Pure Sine Waves (Mapped to their Z-axis frequencies)
+              ...(decomposedWaves.waves || []).map((waveData) => ({
+                x: time,
+                // We add the mean back so they hover at the same vertical height as the raw data
+                y: waveData.wave.map(val => val + decomposedWaves.global_mean),
+                z: Array(time.length).fill(waveData.frequency), // Push them back along the Z-axis by frequency
+                type: 'scatter3d',
+                mode: 'lines',
+                name: `Extracted: ${waveData.frequency.toFixed(3)} Hz`,
+                line: { width: 4 }
+              }))
+            ]}
+            layout={{ 
+              title: '3D Fourier Deconstruction (Raw Data vs Constituent Waves)', 
+              scene: {
+                xaxis: { title: 'Time (Days)' },
+                yaxis: { title: 'Price (Amplitude)' },
+                zaxis: { title: 'Frequency (Hz)' }
+              },
+              height: 600, 
+              margin: { l: 0, r: 0, b: 0, t: 50 } 
+            }}
+            style={{ width: '100%' }}
+          />
+        )}
       </div>
 
       {/* Bottom: Frequency Domain (Spectrogram) */}
