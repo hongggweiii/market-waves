@@ -138,6 +138,67 @@ def compute_3d_decomposition(req: DecomposeRequest):
         "waves": constituent_waves
     }
 
+class ForecastRequest(BaseModel):
+    signal_data: list[float]
+    sampling_rate: float
+    horizon: int = 60  # Number of days to forecast ahead
+
+@app.post("/api/forecast")
+def compute_forecast(req: ForecastRequest):
+    y = np.array(req.signal_data)
+    N = len(y)
+    t_future = np.arange(N, N + req.horizon)
+
+    # Remove DC offset so FFT sees only oscillations
+    global_mean = float(np.mean(y))
+    y_centered = y - global_mean
+
+    # Full FFT over the historical window
+    yf = rfft(y_centered)
+    xf = rfftfreq(N, 1.0 / req.sampling_rate)
+
+    # Top 3 dominant frequency components
+    top_3_idx = np.argsort(np.abs(yf))[-3:][::-1]
+
+    # Reconstruct historical signal and extrapolate forward
+    hist_recon = np.zeros(N) + global_mean
+    forecast = np.zeros(req.horizon)
+    components = []
+
+    for idx in top_3_idx:
+        freq  = float(xf[idx])
+        amp   = (2.0 / N) * float(np.abs(yf[idx]))
+        phase = float(np.angle(yf[idx]))
+
+        hist_recon += amp * np.cos(2 * np.pi * freq * np.arange(N) + phase)
+        forecast   += amp * np.cos(2 * np.pi * freq * t_future + phase)
+
+        period = (1.0 / freq) if freq > 0 else float('inf')
+        components.append({
+            "frequency":   round(freq, 4),
+            "period_days": round(period, 1),
+            "amplitude":   round(amp, 3)
+        })
+
+    forecast += global_mean
+
+    # Confidence band: starts at ±1.96σ (reconstruction error) and widens as sqrt(1 + h/N)
+    residual_std = float(np.std(y - hist_recon))
+    explained_var = float(1.0 - np.var(y - hist_recon) / np.var(y_centered))
+    steps = np.arange(1, req.horizon + 1)
+    half_band = 1.96 * residual_std * np.sqrt(1 + steps / N)
+
+    return {
+        "forecast_time":      t_future.tolist(),
+        "forecast":           forecast.tolist(),
+        "band_upper":         (forecast + half_band).tolist(),
+        "band_lower":         (forecast - half_band).tolist(),
+        "components":         components,
+        "residual_std":       round(residual_std, 3),
+        "explained_variance": round(explained_var, 3)
+    }
+
+
 class ProbeRequest(BaseModel):
     signal_data: list[float]
     target_period: float  # Eg: 7 for a 7 day cycle
