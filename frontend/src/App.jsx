@@ -119,9 +119,11 @@ function App() {
   const dominantPeriod       = forecastData?.components?.[0]?.period_days;
   const priceMean            = price.length > 0 ? price.reduce((a, b) => a + b, 0) / price.length : 0;
 
+  const API_BASE = import.meta.env.VITE_API_URL || '';
+
   // ── API effects ────────────────────────────────────────────────────────────
   useEffect(() => {
-    fetch(`/api/data?ticker=${asset}`)
+    fetch(`${API_BASE}/api/data?ticker=${asset}`)
       .then(r => r.json())
       .then(d => { setTime(d.time); setPrice(d.price); })
       .catch(console.error);
@@ -129,7 +131,7 @@ function App() {
 
   useEffect(() => {
     if (price.length === 0) return;
-    fetch('/api/stft', {
+    fetch(`${API_BASE}/api/stft`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ signal_data: price, window_size: windowSize, sampling_rate: samplingRate }),
@@ -142,7 +144,7 @@ function App() {
       spectrogram.frequencies[i] > cutoffFreq ? row.map(() => 0) : row);
     const filteredImag = spectrogram.imag_parts.map((row, i) =>
       spectrogram.frequencies[i] > cutoffFreq ? row.map(() => 0) : row);
-    fetch('/api/ifft', {
+    fetch(`${API_BASE}/api/ifft`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ real_parts: filteredReal, imag_parts: filteredImag,
@@ -152,7 +154,7 @@ function App() {
 
   useEffect(() => {
     if (price.length === 0) return;
-    fetch('/api/decompose', {
+    fetch(`${API_BASE}/api/decompose`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ signal_data: price, sampling_rate: 1.0, num_components: numComponents }),
@@ -161,7 +163,7 @@ function App() {
 
   useEffect(() => {
     if (price.length === 0) return;
-    fetch('/api/forecast', {
+    fetch(`${API_BASE}/api/forecast`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ signal_data: price, sampling_rate: 1.0, horizon: forecastHorizon, num_components: numComponents }),
