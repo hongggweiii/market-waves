@@ -1,0 +1,38 @@
+# Python virtual environment
+bt3017_env/
+env/
+venv/
+.venv/
+ENV/
+
+# Node modules (Vercel will reinstall during build)
+frontend/node_modules/
+node_modules/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+frontend/dist/
+*.log
+
+# Development
+.vscode/
+.idea/
+.env.local
+.env.*.local
+
+# git
+.git/
+.gitignore
