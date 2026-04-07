@@ -95,30 +95,32 @@ def compute_ifft(req: IFFTRequest):
 class DecomposeRequest(BaseModel):
     signal_data: list[float]
     sampling_rate: float
+    num_components: int = 3  # How many dominant frequencies to extract
 
 @app.post("/api/decompose")
 def compute_3d_decomposition(req: DecomposeRequest):
     y = np.array(req.signal_data)
     N = len(y)
     t = np.arange(N)
-    
+    n = max(1, min(req.num_components, N // 2))  # clamp to valid range
+
     # Remove the DC Offset (baseline) so real waves are not masked
     global_mean = float(np.mean(y))
     y_centered = y - global_mean
-    
+
     # Run standard 1D FFT over the entire signal
     yf = rfft(y_centered)
     xf = rfftfreq(N, 1 / req.sampling_rate)
-    
+
     # Find the magnitudes to locate the strongest frequencies
     magnitudes = np.abs(yf)
-    
-    # Get the indices of the top 3 strongest frequencies
-    top_3_indices = np.argsort(magnitudes)[-3:][::-1]
+
+    # Get the indices of the top N strongest frequencies
+    top_indices = np.argsort(magnitudes)[-n:][::-1]
     
     constituent_waves = []
     
-    for idx in top_3_indices:
+    for idx in top_indices:
         freq = xf[idx]
         # Calculate True Amplitude: A = 2 * |X[k]| / N
         amplitude = (2.0 / N) * np.abs(yf[idx])
@@ -141,7 +143,8 @@ def compute_3d_decomposition(req: DecomposeRequest):
 class ForecastRequest(BaseModel):
     signal_data: list[float]
     sampling_rate: float
-    horizon: int = 60  # Number of days to forecast ahead
+    horizon: int = 60         # Number of days to forecast ahead
+    num_components: int = 3   # How many dominant frequencies to use
 
 @app.post("/api/forecast")
 def compute_forecast(req: ForecastRequest):
@@ -157,8 +160,9 @@ def compute_forecast(req: ForecastRequest):
     yf = rfft(y_centered)
     xf = rfftfreq(N, 1.0 / req.sampling_rate)
 
-    # Top 3 dominant frequency components
-    top_3_idx = np.argsort(np.abs(yf))[-3:][::-1]
+    # Top N dominant frequency components
+    n = max(1, min(req.num_components, N // 2))
+    top_3_idx = np.argsort(np.abs(yf))[-n:][::-1]
 
     # Reconstruct historical signal and extrapolate forward
     hist_recon = np.zeros(N) + global_mean

@@ -59,13 +59,13 @@ function SectionLabel({ children }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-function NavTab({ id, icon, label, activeTab, setActiveTab }) {
+function NavTab({ id, label, activeTab, setActiveTab }) {
   return (
     <button
       onClick={() => setActiveTab(id)}
       style={{
         background: 'none', border: 'none', cursor: 'pointer',
-        padding: '0 20px', height: '60px', display: 'flex', alignItems: 'center', gap: '6px',
+        padding: '0 20px', height: '60px', display: 'flex', alignItems: 'center',
         color: activeTab === id ? '#ffffff' : 'rgba(255,255,255,0.55)',
         borderBottom: activeTab === id ? '3px solid #60a5fa' : '3px solid transparent',
         fontWeight: activeTab === id ? 700 : 400,
@@ -73,7 +73,7 @@ function NavTab({ id, icon, label, activeTab, setActiveTab }) {
         transition: 'color 0.15s',
       }}
     >
-      <span>{icon}</span> {label}
+      {label}
     </button>
   );
 }
@@ -107,6 +107,9 @@ function App() {
   // Forecasting
   const [forecastData, setForecastData]       = useState(null);
   const [forecastHorizon, setForecastHorizon] = useState(60);
+
+  // Shared component count (used by 3D decomposition and forecasting)
+  const [numComponents, setNumComponents] = useState(3);
 
   // ── Derived values ─────────────────────────────────────────────────────────
   const deltaF               = (samplingRate / windowSize).toFixed(4);
@@ -152,18 +155,18 @@ function App() {
     fetch('http://localhost:8000/api/decompose', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ signal_data: price, sampling_rate: 1.0 }),
+      body: JSON.stringify({ signal_data: price, sampling_rate: 1.0, num_components: numComponents }),
     }).then(r => r.json()).then(setDecomposedWaves).catch(console.error);
-  }, [price]);
+  }, [price, numComponents]);
 
   useEffect(() => {
     if (price.length === 0) return;
     fetch('http://localhost:8000/api/forecast', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ signal_data: price, sampling_rate: 1.0, horizon: forecastHorizon }),
+      body: JSON.stringify({ signal_data: price, sampling_rate: 1.0, horizon: forecastHorizon, num_components: numComponents }),
     }).then(r => r.json()).then(setForecastData).catch(console.error);
-  }, [price, forecastHorizon]);
+  }, [price, forecastHorizon, numComponents]);
 
   useEffect(() => {
     if (price.length === 0) return;
@@ -223,7 +226,6 @@ function App() {
         {/* Logo */}
         <div style={{ padding: '0 22px', display: 'flex', alignItems: 'center',
           gap: '8px', borderRight: '1px solid rgba(255,255,255,0.1)', flexShrink: 0 }}>
-          <span style={{ fontSize: '1.4em', lineHeight: 1 }}>〜</span>
           <span style={{ color: '#fff', fontWeight: 800, fontSize: '0.95em', letterSpacing: '0.04em' }}>
             Market<span style={{ color: '#60a5fa' }}>Waves</span>
           </span>
@@ -231,10 +233,10 @@ function App() {
 
         {/* Tab links */}
         <div style={{ display: 'flex', alignItems: 'stretch', flex: 1, overflowX: 'auto' }}>
-          <NavTab id="home"     icon="🏠" label="Home"             activeTab={activeTab} setActiveTab={setActiveTab} />
-          <NavTab id="stft"     icon="📊" label="STFT Explorer"    activeTab={activeTab} setActiveTab={setActiveTab} />
-          <NavTab id="forecast" icon="📈" label="Forecasting"      activeTab={activeTab} setActiveTab={setActiveTab} />
-          <NavTab id="prober"   icon="🔍" label="Frequency Prober" activeTab={activeTab} setActiveTab={setActiveTab} />
+          <NavTab id="home"     label="Home"             activeTab={activeTab} setActiveTab={setActiveTab} />
+          <NavTab id="stft"     label="STFT Explorer"    activeTab={activeTab} setActiveTab={setActiveTab} />
+          <NavTab id="forecast" label="Forecasting"      activeTab={activeTab} setActiveTab={setActiveTab} />
+          <NavTab id="prober"   label="Frequency Prober" activeTab={activeTab} setActiveTab={setActiveTab} />
         </div>
 
         {/* Dataset selector */}
@@ -268,7 +270,6 @@ function App() {
             {/* Hero banner */}
             <div style={{ background: `linear-gradient(135deg, ${C.navy} 0%, #1e40af 100%)`,
               padding: '72px 24px 64px', textAlign: 'center', color: '#fff' }}>
-              <div style={{ fontSize: '3.5em', marginBottom: '12px', lineHeight: 1 }}>〜</div>
               <h1 style={{ color: '#fff', fontSize: '2.6em', fontWeight: 800,
                 margin: '0 0 14px', letterSpacing: '-0.03em' }}>
                 MarketWaves
@@ -299,11 +300,11 @@ function App() {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))',
                 gap: '20px', marginBottom: '52px' }}>
                 {[
-                  { id: 'stft', icon: '📊', color: C.blue, title: 'STFT Explorer',
+                  { id: 'stft', color: C.blue, title: 'STFT Explorer',
                     desc: 'Decompose market prices into time-frequency representations. Adjust window size and sampling rate to observe the time-frequency tradeoff live. Apply a low-pass filter via Inverse FFT to extract trend from noise.' },
-                  { id: 'forecast', icon: '📈', color: C.pink, title: 'Cycle Forecasting',
+                  { id: 'forecast', color: C.pink, title: 'Cycle Forecasting',
                     desc: 'Extrapolate the dominant cycles identified by FFT forward in time. Understand when and why frequency-based forecasting is reliable — and what makes it break down on real market data.' },
-                  { id: 'prober', icon: '🔍', color: C.purple, title: 'Frequency Prober',
+                  { id: 'prober', color: C.purple, title: 'Frequency Prober',
                     desc: 'Test whether a specific cycle length exists in the data using the dot product method. Connect the intuitive concept of a "period in days" to the mathematical concept of "frequency in Hz".' },
                 ].map(f => (
                   <div
@@ -314,10 +315,9 @@ function App() {
                     onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.12)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
                     onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.06)'; e.currentTarget.style.transform = 'none'; }}
                   >
-                    <div style={{ fontSize: '2.2em', marginBottom: '12px' }}>{f.icon}</div>
                     <h3 style={{ fontSize: '1.05em', color: f.color, marginBottom: '10px' }}>{f.title}</h3>
                     <p style={{ color: C.textMuted, lineHeight: '1.65em', fontSize: '0.9em', marginBottom: '16px' }}>{f.desc}</p>
-                    <span style={{ color: f.color, fontSize: '0.85em', fontWeight: 700 }}>Open →</span>
+                    <span style={{ color: f.color, fontSize: '0.85em', fontWeight: 700 }}>Open</span>
                   </div>
                 ))}
               </div>
@@ -326,7 +326,7 @@ function App() {
               <div style={{ ...card({ marginBottom: '52px' }) }}>
                 <h2 style={{ fontSize: '1.15em', marginBottom: '20px', display: 'flex',
                   alignItems: 'center', gap: '8px' }}>
-                  📖 Guided Walkthrough
+                  Guided Walkthrough
                   <span style={{ fontSize: '0.7em', color: C.textMuted, fontWeight: 400,
                     background: C.blueSoft, padding: '3px 10px', borderRadius: '20px', marginLeft: '4px' }}>
                     7 steps
@@ -380,7 +380,7 @@ function App() {
                   <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '6px',
                     padding: '10px 14px', marginBottom: '14px', color: C.red, fontSize: '0.83em',
                     lineHeight: '1.55em' }}>
-                    <strong>⚠️ Nyquist Violated</strong> — at fₛ = {samplingRate}/day, you can only capture
+                    <strong>Nyquist Violated</strong> — at fs = {samplingRate}/day, you can only capture
                     cycles longer than <strong>{(2 / samplingRate).toFixed(1)} days</strong>.
                     The 7-day cycle (0.143 Hz) is above this limit and will appear distorted.
                   </div>
@@ -398,7 +398,7 @@ function App() {
 
                 <div style={{ marginBottom: '18px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
-                    <label style={{ fontSize: '0.875em', fontWeight: 600 }}>Sampling Rate (fₛ)</label>
+                    <label style={{ fontSize: '0.875em', fontWeight: 600 }}>Sampling Rate (fs)</label>
                     <span style={{ fontWeight: 700, color: C.blue, fontSize: '0.9em' }}>{samplingRate} / day</span>
                   </div>
                   <input type="range" min="0.1" max="5.0" step="0.1" value={samplingRate}
@@ -409,12 +409,12 @@ function App() {
                 <div style={{ background: C.blueSoft, borderRadius: '8px', padding: '12px 16px', fontSize: '0.875em' }}>
                   <div style={{ marginBottom: '4px' }}>
                     <strong>Frequency resolution: </strong>
-                    Δf = {samplingRate} / {windowSize} = <span style={{ color: C.blue, fontWeight: 700 }}>{deltaF} Hz</span>
+                    df = {samplingRate} / {windowSize} = <span style={{ color: C.blue, fontWeight: 700 }}>{deltaF} Hz</span>
                   </div>
                   <div style={{ color: C.textMuted }}>
                     Smallest distinguishable cycle difference:{' '}
                     <strong style={{ color: C.text }}>
-                      {samplingRate > 0 ? Math.round(1 / parseFloat(deltaF)) : '∞'} days
+                      {samplingRate > 0 ? Math.round(1 / parseFloat(deltaF)) : 'N/A'} days
                     </strong>
                   </div>
                 </div>
@@ -463,27 +463,36 @@ function App() {
             <InsightBox bg={C.blueSoft} border="#bfdbfe">
               <strong style={{ color: C.text }}>Time-Frequency Tradeoff: </strong>
               Your current window of <strong>{windowSize} days</strong> resolves frequencies to
-              within <strong>Δf = {deltaF} Hz</strong> — meaning you can distinguish two cycles only
-              if their periods differ by more than <strong>{samplingRate > 0 ? Math.round(1 / parseFloat(deltaF)) : '∞'} days</strong>.
+              within <strong>df = {deltaF} Hz</strong> — meaning you can distinguish two cycles only
+              if their periods differ by more than <strong>{samplingRate > 0 ? Math.round(1 / parseFloat(deltaF)) : 'N/A'} days</strong>.
               Increasing the window sharpens frequency precision but blurs the time axis.
               This tradeoff is fundamental to STFT and cannot be eliminated.
             </InsightBox>
 
-            {/* 3D toggle */}
-            <div style={{ margin: '20px 0 14px', display: 'flex', alignItems: 'center', gap: '14px' }}>
+            {/* 3D toggle + component count */}
+            <div style={{ margin: '20px 0 14px', display: 'flex', alignItems: 'center',
+              gap: '20px', flexWrap: 'wrap' }}>
               <button
                 onClick={() => setIs3DMode(!is3DMode)}
                 style={{ background: is3DMode ? C.navy : C.blue, color: '#fff', border: 'none',
                   borderRadius: '8px', padding: '9px 22px', fontWeight: 600,
                   cursor: 'pointer', fontSize: '0.875em', transition: 'background 0.15s' }}
               >
-                {is3DMode ? '← Return to 2D View' : '✨ View 3D Fourier Breakdown'}
+                {is3DMode ? 'Return to 2D View' : 'View 3D Fourier Breakdown'}
               </button>
-              {is3DMode && (
-                <span style={{ color: C.textMuted, fontSize: '0.82em' }}>
-                  Top 3 extracted frequency components shown as separate waves along the Z-axis
-                </span>
-              )}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <label style={{ fontSize: '0.875em', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                  Components to extract:
+                </label>
+                <input type="range" min="1" max="8" step="1" value={numComponents}
+                  onChange={e => setNumComponents(parseInt(e.target.value))}
+                  style={{ width: '100px', accentColor: C.blue }} />
+                <span style={{ fontWeight: 700, color: C.blue, minWidth: '12px' }}>{numComponents}</span>
+              </div>
+              <span style={{ color: C.textMuted, fontSize: '0.82em' }}>
+                Real datasets have many frequencies — the slider controls how many dominant ones to isolate.
+                More components = better reconstruction, but the 3D chart becomes harder to read.
+              </span>
             </div>
 
             {/* Time domain chart */}
@@ -580,14 +589,25 @@ function App() {
             {/* Horizon + model fit */}
             <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '16px', marginBottom: '16px' }}>
               <div style={card()}>
-                <SectionLabel>Forecast Horizon</SectionLabel>
+                <SectionLabel>Forecast Parameters</SectionLabel>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
                   <label style={{ fontSize: '0.875em', fontWeight: 600 }}>Days to forecast ahead</label>
                   <span style={{ fontWeight: 700, color: C.pink }}>{forecastHorizon} days</span>
                 </div>
                 <input type="range" min="10" max="120" step="5" value={forecastHorizon}
                   onChange={e => setForecastHorizon(parseInt(e.target.value))}
-                  style={{ width: '100%', accentColor: C.pink }} />
+                  style={{ width: '100%', accentColor: C.pink, marginBottom: '16px' }} />
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                  <label style={{ fontSize: '0.875em', fontWeight: 600 }}>Frequency components to use</label>
+                  <span style={{ fontWeight: 700, color: C.blue }}>{numComponents}</span>
+                </div>
+                <input type="range" min="1" max="8" step="1" value={numComponents}
+                  onChange={e => setNumComponents(parseInt(e.target.value))}
+                  style={{ width: '100%', accentColor: C.blue }} />
+                <p style={{ fontSize: '0.8em', color: C.textMuted, marginTop: '8px' }}>
+                  More components capture more of the signal but risk overfitting noise as real cycles.
+                  Watch the model fit % change as you increase this.
+                </p>
               </div>
 
               {forecastData && (
@@ -757,9 +777,9 @@ function App() {
                       {probeResult.magnitude.toFixed(2)}
                     </div>
                     <div style={{ color: C.textMuted, fontSize: '0.82em', marginTop: '4px' }}>
-                      {probeResult.magnitude > 2 ? '🔴 Strong cycle detected'
-                        : probeResult.magnitude > 0.5 ? '🟡 Moderate presence'
-                        : '🟢 Weak / absent'}
+                      {probeResult.magnitude > 2 ? 'Strong cycle detected'
+                        : probeResult.magnitude > 0.5 ? 'Moderate presence'
+                        : 'Weak / absent'}
                     </div>
                   </div>
                   <div style={{ background: C.bg, borderRadius: '8px',
