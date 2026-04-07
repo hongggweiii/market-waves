@@ -22,8 +22,11 @@ function App() {
   const [is3DMode, setIs3DMode] = useState(false);
   const [decomposedWaves, setDecomposedWaves] = useState([]);
 
+  const [probePeriod, setProbePeriod] = useState(7);
+  const [probeResult, setProbeResult] = useState(null);
+
   const deltaF = (samplingRate / windowSize).toFixed(4);
-  const isNyquistViolated = samplingRate <= 0.28;
+  const isNyquistViolated = samplingRate < 2 / 7;
 
   // Fetch raw data
   useEffect(() => {
@@ -110,11 +113,33 @@ function App() {
 
   const hoverTextMatrix = spectrogram ? spectrogram.magnitudes.map((row, i) => 
     row.map((mag, j) => {
-      const a = spectrogram.imag_parts[i][j].toFixed(2);
-      const b = spectrogram.real_parts[i][j].toFixed(2);
-      return `Sine Part (a): ${a}<br>Cosine Part (b): ${b}`;
+      const a = spectrogram.real_parts[i][j].toFixed(2);
+      const b = spectrogram.imag_parts[i][j].toFixed(2);
+      return `Cosine Part (a): ${a}<br>Sine Part (b): ${b}`;
     })
   ) : [];
+
+  // Fetch Dot Product Probe
+  useEffect(() => {
+    if (price.length === 0) return;
+
+    fetch('http://localhost:8000/api/probe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        signal_data: price,
+        target_period: probePeriod
+      })
+    })
+      .then(res => res.json())
+      .then(data => {
+        setProbeResult(data);
+      })
+      .catch(err => console.error("Error probing frequency:", err));
+  }, [price, probePeriod]);
+
+  // Calculate the mean of the raw data to visually overlay the pure wave correctly
+  const priceMean = price.length > 0 ? price.reduce((a, b) => a + b, 0) / price.length : 0;
 
   // Prepare plot traces dynamically based on filtering
   const topChartTraces = [
@@ -295,7 +320,8 @@ function App() {
               text: hoverTextMatrix,
               type: 'heatmap', 
               colorscale: 'Jet',
-              hovertemplate: 
+              zsmooth: 'best',
+              hovertemplate:
                 '<b>Time Window:</b> %{x} days<br>' +
                 '<b>Frequency:</b> %{y:.4f} Hz<br>' +
                 '%{text}<br>' +
@@ -307,6 +333,91 @@ function App() {
           />
         ) : (
           <p style={{ padding: '20px' }}>Loading STFT Matrix...</p>
+        )}
+      </div>
+
+      <hr style={{ margin: '40px 0', border: 'none', borderTop: '2px dashed #ccc' }} />
+
+      {/* THE DOT PRODUCT FREQUENCY PROBER */}
+      <div style={{ background: '#f9fbe7', padding: '20px', borderRadius: '8px', marginBottom: '40px', border: '1px solid #cddc39' }}>
+        <h2>3. The Math: Dot Product Frequency Prober</h2>
+        <p>Does a specific cycle exist in this market data? We mathematically "probe" the data by calculating the dot product between the market prices and a pure sine/cosine wave.</p>
+
+        <div style={{ display: 'flex', gap: '40px', alignItems: 'flex-start', flexWrap: 'wrap', marginTop: '20px' }}>
+          
+          {/* Slider Controls */}
+          <div style={{ flex: '1', minWidth: '300px' }}>
+            <label><strong>Target Cycle Period: <span style={{ color: '#2e7d32', fontSize: '1.2em' }}>{probePeriod} Days</span></strong></label><br/>
+            <input 
+              type="range" 
+              min="2" max="100" step="1"
+              value={probePeriod} 
+              onChange={(e) => setProbePeriod(parseInt(e.target.value))}
+              style={{ width: '100%', marginTop: '10px' }}
+            />
+            <p style={{ fontSize: '0.9em', color: '#555' }}>
+              Slide to test different frequencies. The higher the magnitude, the stronger this cycle is present in the data!
+            </p>
+          </div>
+
+          {/* The Math Results Gauge */}
+          {probeResult && (
+            <div style={{ flex: '1', minWidth: '300px', background: '#fff', padding: '15px', borderRadius: '8px', border: '1px solid #ccc', textAlign: 'center' }}>
+              <h3 style={{ margin: '0 0 10px 0' }}>Cycle Amplitude (Magnitude)</h3>
+              
+              {/* Dynamic Score Display */}
+              <div style={{ 
+                fontSize: '3em', 
+                fontWeight: 'bold', 
+                color: probeResult.magnitude > 2 ? '#d32f2f' : (probeResult.magnitude > 0.5 ? '#f57c00' : '#388e3c') 
+              }}>
+                {probeResult.magnitude.toFixed(2)}
+              </div>
+              
+              <div style={{ fontSize: '0.9em', color: '#666', marginTop: '10px', textAlign: 'left' }}>
+                <strong>Behind the scenes:</strong><br/>
+                Cosine Dot Product (Σ x·cos): {probeResult.dot_cos.toFixed(0)}<br/>
+                Sine Dot Product (Σ x·sin): {probeResult.dot_sin.toFixed(0)}<br/>
+                (2/N)·√(cos² + sin²) = Amplitude: {probeResult.magnitude.toFixed(2)}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Visual overlay of the probed wave */}
+        {probeResult && (
+          <div style={{ border: '1px solid #ccc', marginTop: '20px', background: '#fff' }}>
+            <Plot
+              data={[
+                { 
+                  x: time, 
+                  y: price, 
+                  type: 'scatter', 
+                  mode: 'lines', 
+                  name: 'Raw Market Data',
+                  line: { color: '#e0e0e0', width: 2 } 
+                },
+                { 
+                  x: time, 
+                  // Add mean back to pure wave so it overlays visually on top of the asset price
+                  y: probeResult.pure_wave.map(val => val + priceMean), 
+                  type: 'scatter', 
+                  mode: 'lines', 
+                  name: `${probePeriod}-Day Test Wave`,
+                  line: { color: '#2e7d32', width: 3 } 
+                }
+              ]}
+              layout={{ 
+                title: `Visualizing the ${probePeriod}-Day Test Wave Alignment`, 
+                xaxis: { title: 'Days' }, 
+                yaxis: { title: 'Price' }, 
+                height: 300, 
+                margin: { l: 50, r: 50, b: 50, t: 50 },
+                showlegend: true
+              }}
+              style={{ width: '100%' }}
+            />
+          </div>
         )}
       </div>
     </div>
