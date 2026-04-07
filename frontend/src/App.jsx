@@ -121,7 +121,7 @@ function App() {
 
   // ── API effects ────────────────────────────────────────────────────────────
   useEffect(() => {
-    fetch(`http://localhost:8000/api/data?ticker=${asset}`)
+    fetch(`/api/data?ticker=${asset}`)
       .then(r => r.json())
       .then(d => { setTime(d.time); setPrice(d.price); })
       .catch(console.error);
@@ -129,7 +129,7 @@ function App() {
 
   useEffect(() => {
     if (price.length === 0) return;
-    fetch('http://localhost:8000/api/stft', {
+    fetch('/api/stft', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ signal_data: price, window_size: windowSize, sampling_rate: samplingRate }),
@@ -142,7 +142,7 @@ function App() {
       spectrogram.frequencies[i] > cutoffFreq ? row.map(() => 0) : row);
     const filteredImag = spectrogram.imag_parts.map((row, i) =>
       spectrogram.frequencies[i] > cutoffFreq ? row.map(() => 0) : row);
-    fetch('http://localhost:8000/api/ifft', {
+    fetch('/api/ifft', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ real_parts: filteredReal, imag_parts: filteredImag,
@@ -152,7 +152,7 @@ function App() {
 
   useEffect(() => {
     if (price.length === 0) return;
-    fetch('http://localhost:8000/api/decompose', {
+    fetch('/api/decompose', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ signal_data: price, sampling_rate: 1.0, num_components: numComponents }),
@@ -161,7 +161,7 @@ function App() {
 
   useEffect(() => {
     if (price.length === 0) return;
-    fetch('http://localhost:8000/api/forecast', {
+    fetch('/api/forecast', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ signal_data: price, sampling_rate: 1.0, horizon: forecastHorizon, num_components: numComponents }),
@@ -170,7 +170,7 @@ function App() {
 
   useEffect(() => {
     if (price.length === 0) return;
-    fetch('http://localhost:8000/api/probe', {
+    fetch('/api/probe', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ signal_data: price, target_period: probePeriod }),

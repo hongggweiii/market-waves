@@ -1,0 +1,6 @@
+fastapi==0.135.2
+uvicorn==0.42.0
+pydantic==2.12.5
+numpy==2.4.3
+scipy==1.17.1
+yfinance==1.2.0

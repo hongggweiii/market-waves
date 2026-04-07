@@ -1,2 +1,5 @@
 __pycache__
 .DS_Store
+.vercel
+bt3017_env
+*.pyc
