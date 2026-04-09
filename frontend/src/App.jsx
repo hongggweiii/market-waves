@@ -842,9 +842,10 @@ function App() {
                   <strong style={{ color: C.text }}>Reading the chart:</strong><br />
                   The purple line is the reconstructed wave at exactly the probed period,
                   scaled to its detected amplitude and phase-aligned to the data.
-                  When the purple wave lines up with the raw data's oscillations, the
-                  cycle is real. When it looks random relative to the price, the cycle
-                  is absent.
+                  The magnitude gauge shows the true signal strength: a high score means
+                  the cycle is real and strong; a low score means it's mostly noise. Use
+                  the magnitude as your primary indicator, and the purple wave as visual
+                  confirmation.
                 </div>
               </div>
             </div>
